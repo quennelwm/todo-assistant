@@ -1,0 +1,16 @@
+.DS_Store
+build/
+dist/
+*.app/
+*.dSYM/
+*.xcarchive/
+xcuserdata/
+*.xcuserstate
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+.env*
+Todos.json
+IntegratedPayments.json
+操作记录/

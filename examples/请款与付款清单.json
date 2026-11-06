@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "version": "example-1",
+  "updated_at": "2026-11-06T12:00:00+08:00",
+  "coverage": "虚构示例，不代表实际款项",
+  "items": [{
+    "id": "EXAMPLE-PAYMENT-001",
+    "project": "示例物料制作费",
+    "counterparty": "示例供应商",
+    "amount": "100.00",
+    "currency": "CNY",
+    "stage": "待申请",
+    "evidence": [],
+    "updated_at": "2026-11-06T12:00:00+08:00"
+  }]
+}
