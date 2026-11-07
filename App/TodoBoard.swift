@@ -10,6 +10,7 @@ struct TodoBoard: View {
     @State private var creating: NewTodoDraft?
     @State private var added: TodoItem?
     @State private var scrollEpoch = UUID()
+    @State private var showingSettings = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 15)) { context in
@@ -97,6 +98,9 @@ struct TodoBoard: View {
         .sheet(isPresented: $showingRemovedPayments) {
             RemovedPaymentsView(model: model, close: { showingRemovedPayments = false })
         }
+        .sheet(isPresented: $showingSettings) {
+            TodoSettings(save: model.setWidgetAppearance)
+        }
         .sheet(item: $creating) { draft in
             NewTodoEditor(draft: draft, save: { draft in
                 guard let item = model.createTask(draft) else {
@@ -139,6 +143,12 @@ struct TodoBoard: View {
             .disabled(model.syncing)
             .help(model.failures.isEmpty ? "立即同步" : model.failures.joined(separator: "\n"))
             .accessibilityLabel("立即同步")
+            Button { showingSettings = true } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.borderless)
+            .help("设置")
+            .accessibilityLabel("设置")
         }
     }
 
@@ -185,6 +195,86 @@ struct TodoBoard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct TodoSettings: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @State private var appearance = WidgetAppearanceSettings()
+    @State private var error: String?
+    let save: (WidgetAppearanceSettings) throws -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("设置").font(.headline)
+            GroupBox("外观") {
+                VStack(alignment: .leading, spacing: 10) {
+                    transparencySlider("底板透明度", value: $appearance.backingTransparency)
+                    transparencySlider("卡片底色透明度", value: $appearance.cardTransparency)
+                    ZStack(alignment: .leading) {
+                        LinearGradient(colors: [.indigo, .teal.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        Color(red: 0.025, green: 0.03, blue: 0.045)
+                            .opacity(reduceTransparency ? 1 : appearance.backingOpacity)
+                        VStack(alignment: .leading, spacing: 7) {
+                            Label("普通待办", systemImage: "circle")
+                            Label("已完成", systemImage: "checkmark.circle.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(6)
+                                .background(
+                                    Color(nsColor: TodoCardTone.done.rowFill)
+                                        .opacity(reduceTransparency ? 1 : appearance.cardOpacity),
+                                    in: RoundedRectangle(cornerRadius: 5)
+                                )
+                        }
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+                        .padding(10)
+                    }
+                    .frame(height: 74)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .accessibilityHidden(true)
+                    Text(reduceTransparency ? "macOS 已开启「降低透明度」，当前使用实色背景。" : "底板滑杆调节深色遮罩。壁纸透出效果由 macOS 的「图标与小组件样式」决定。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.padding(.vertical, 4)
+            }
+            if let error { Text(error).font(.caption).foregroundStyle(.orange) }
+            HStack {
+                Button("恢复默认") { appearance = WidgetAppearanceSettings() }
+                Spacer()
+                Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("保存") {
+                    do {
+                        try save(appearance)
+                        dismiss()
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 350)
+        .onAppear {
+            if let store = try? TodoStore.shared() {
+                appearance = store.widgetAppearance()
+            }
+        }
+    }
+
+    private func transparencySlider(_ title: String, value: Binding<Int>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text("\(value.wrappedValue)%").monospacedDigit()
+            }
+            Slider(value: Binding(
+                get: { Double(value.wrappedValue) },
+                set: { value.wrappedValue = Int($0) }
+            ), in: 0...100, step: 1)
+                .accessibilityLabel(title)
+                .accessibilityValue("\(value.wrappedValue)%")
+        }
     }
 }
 
@@ -258,7 +348,7 @@ private struct TodoBoardRow: View {
         .padding(.horizontal, 7)
         .frame(minHeight: 51, alignment: .leading)
         .background {
-            if let fill = urgency.rowFill {
+            if let fill = item.cardTone(at: now)?.rowFill {
                 RoundedRectangle(cornerRadius: 7).fill(Color(nsColor: fill))
             }
         }

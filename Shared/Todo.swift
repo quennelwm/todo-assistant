@@ -25,12 +25,22 @@ enum Urgency: Int, CaseIterable {
     }
 }
 
+enum TodoCardTone: Equatable {
+    case overdue, week, done, cancelled
+}
+
 enum TodoClock {
     static let zone = TimeZone(identifier: "Asia/Shanghai")!
     static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = zone
         return calendar
+    }
+
+    static func isSameWeek(_ date: Date, as reference: Date) -> Bool {
+        var weekCalendar = Calendar(identifier: .iso8601)
+        weekCalendar.timeZone = zone
+        return weekCalendar.isDate(date, equalTo: reference, toGranularity: .weekOfYear)
     }
 
     static func day(_ date: Date) -> String {
@@ -204,6 +214,18 @@ struct TodoItem: Codable, Equatable, Identifiable {
         return .later
     }
 
+    func cardTone(at now: Date) -> TodoCardTone? {
+        switch urgency(at: now) {
+        case .overdue: return .overdue
+        case .done: return .done
+        case .cancelled: return .cancelled
+        case .undated: return nil
+        case .today, .tomorrow, .later:
+            guard let date = TodoClock.parse(due), TodoClock.isSameWeek(date, as: now) else { return nil }
+            return .week
+        }
+    }
+
     static func sorted(_ items: [TodoItem], at now: Date) -> [TodoItem] {
         let ranks = items.filter { $0.state != .information }.map { ($0, $0.urgency(at: now).rawValue, TodoClock.parse($0.due) ?? .distantFuture) }
         return ranks.sorted { ($0.1, $0.2, $0.0.id) < ($1.1, $1.2, $1.0.id) }.map(\.0)
@@ -252,9 +274,7 @@ private enum TodoBoardGroup: Int {
         case .cancelled: self = .cancelled
         case .later:
             guard let date = TodoClock.parse(item.due) else { self = .undated; return }
-            var weekCalendar = Calendar(identifier: .iso8601)
-            weekCalendar.timeZone = TodoClock.zone
-            if weekCalendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
+            if TodoClock.isSameWeek(date, as: now) {
                 self = .week
             } else {
                 self = TodoClock.calendar.isDate(date, equalTo: now, toGranularity: .month) ? .month : .later

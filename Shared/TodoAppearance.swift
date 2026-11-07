@@ -25,18 +25,18 @@ enum WidgetRowMetrics {
     }
 }
 
-extension Urgency {
-    var rowFill: NSColor? {
+extension TodoCardTone {
+    var rowFill: NSColor {
         switch self {
         case .overdue: NSColor(srgbRed: 0.40, green: 0.15, blue: 0.17, alpha: 1)
-        case .today: NSColor(srgbRed: 0.45, green: 0.26, blue: 0.12, alpha: 1)
-        case .tomorrow: NSColor(srgbRed: 0.41, green: 0.35, blue: 0.13, alpha: 1)
+        case .week: NSColor(srgbRed: 0.43, green: 0.36, blue: 0.10, alpha: 1)
         case .done: NSColor(srgbRed: 0.14, green: 0.27, blue: 0.45, alpha: 1)
-        case .cancelled: NSColor(srgbRed: 0.16, green: 0.17, blue: 0.19, alpha: 1)
-        case .later, .undated: nil
+        case .cancelled: NSColor(srgbRed: 0.22, green: 0.22, blue: 0.22, alpha: 1)
         }
     }
+}
 
+extension Urgency {
     var titleColor: Color {
         self == .cancelled ? .white.opacity(0.51) : .white
     }
@@ -56,6 +56,7 @@ struct PendingPaymentRow: View {
     let payment: PendingPayment
     var advance: (() -> Void)? = nil
     var remove: (() -> Void)? = nil
+    var fillOpacity: Double = 1
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -93,6 +94,7 @@ struct PendingPaymentRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             PaymentRowFill(color: payment.rowFill)
+                .opacity(fillOpacity)
                 .clipShape(RoundedRectangle(cornerRadius: 7))
         }
         .contentShape(RoundedRectangle(cornerRadius: 7))
@@ -173,8 +175,8 @@ extension PendingPayment {
     var rowFill: NSColor {
         // Verification is a payment stage, not a confirmed overdue debt.
         if scope == .verification { return NSColor(srgbRed: 0.25, green: 0.22, blue: 0.16, alpha: 1) }
-        if stage == .paid { return Urgency.done.rowFill! }
-        if stage == .withdrawn { return Urgency.cancelled.rowFill! }
+        if stage == .paid { return TodoCardTone.done.rowFill }
+        if stage == .withdrawn { return TodoCardTone.cancelled.rowFill }
         return NSColor(srgbRed: 0.15, green: 0.17, blue: 0.19, alpha: 1)
     }
 }

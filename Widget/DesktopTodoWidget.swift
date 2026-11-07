@@ -10,6 +10,7 @@ struct TodoEntry: TimelineEntry {
     var payments: PendingPaymentList = .notConnected
     var paymentScope: PaymentScope = .application
     var navigation = WidgetNavigation(scope: TodoBoardScope.all.rawValue, paymentScope: nil)
+    var appearance = WidgetAppearanceSettings()
 }
 
 struct TodoTimeline: TimelineProvider {
@@ -40,7 +41,8 @@ struct TodoTimeline: TimelineProvider {
         let changes = Set(dueTimes + (midnight <= expiry ? [midnight] : [])).sorted()
         let entries = [current] + changes.map {
             TodoEntry(date: $0, tasks: current.tasks, unavailable: current.unavailable, scope: current.scope,
-                      payments: current.payments, paymentScope: current.paymentScope, navigation: current.navigation)
+                      payments: current.payments, paymentScope: current.paymentScope, navigation: current.navigation,
+                      appearance: current.appearance)
         }
         completion(Timeline(entries: entries, policy: .after(expiry)))
     }
@@ -49,12 +51,15 @@ struct TodoTimeline: TimelineProvider {
         do {
             let store = try TodoStore.shared()
             let scope = store.widgetScope()
+            let appearance = store.widgetAppearance()
             if scope == .payment {
                 let payments = store.pendingPayments
                 return TodoEntry(date: .now, tasks: [], scope: scope, payments: payments,
-                                 paymentScope: store.paymentScope() ?? payments.initialScope, navigation: store.widgetNavigation())
+                                 paymentScope: store.paymentScope() ?? payments.initialScope, navigation: store.widgetNavigation(),
+                                 appearance: appearance)
             }
-            return TodoEntry(date: .now, tasks: try store.load(), scope: scope, navigation: store.widgetNavigation())
+            return TodoEntry(date: .now, tasks: try store.load(), scope: scope, navigation: store.widgetNavigation(),
+                             appearance: appearance)
         } catch {
             return TodoEntry(date: .now, tasks: [], unavailable: true)
         }
@@ -62,7 +67,17 @@ struct TodoTimeline: TimelineProvider {
 }
 
 struct TodoWidgetView: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     var entry: TodoEntry
+
+    private var backgroundOpacity: Double {
+        reduceTransparency ? 1 : entry.appearance.backingOpacity
+    }
+
+    private var cardOpacity: Double {
+        reduceTransparency ? 1 : entry.appearance.cardOpacity
+    }
+
     var body: some View {
         let board = TodoBoardSnapshot(items: entry.tasks, scope: entry.scope, now: entry.date)
         GeometryReader { available in
@@ -97,9 +112,13 @@ struct TodoWidgetView: View {
         .padding(15)
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(for: .widget) {
-            solidFill(NSColor(srgbRed: 0.095, green: 0.105, blue: 0.12, alpha: 1))
+        .background {
+            if backgroundOpacity > 0 {
+                // Keep the adjustable tint separate from the system's widget material.
+                solidFill(NSColor(srgbRed: 0.025, green: 0.03, blue: 0.045, alpha: 1)).opacity(backgroundOpacity)
+            }
         }
+        .containerBackground(for: .widget) { Color.clear }
     }
 
     private var filters: some View {
@@ -146,7 +165,7 @@ struct TodoWidgetView: View {
                     message(entry.payments.emptyMessage(for: entry.paymentScope))
                 }
                 ForEach(Array(rows[range])) { payment in
-                    PendingPaymentRow(payment: payment)
+                    PendingPaymentRow(payment: payment, fillOpacity: cardOpacity)
                 }
             } else if board.rows.isEmpty {
                 message("暂无待办，点击顶部打开窗口，再点 ＋ 添加。")
@@ -222,8 +241,8 @@ struct TodoWidgetView: View {
         .padding(.vertical, 5)
         .frame(minHeight: 40, alignment: .topLeading)
         .background {
-            if let fill = urgency.rowFill {
-                solidFill(fill).clipShape(RoundedRectangle(cornerRadius: 7))
+            if let fill = item.cardTone(at: entry.date)?.rowFill {
+                solidFill(fill).opacity(cardOpacity).clipShape(RoundedRectangle(cornerRadius: 7))
             }
         }
     }
@@ -252,7 +271,6 @@ struct DesktopTodoWidget: Widget {
         .configurationDisplayName("待办助手")
         .description("按状态查看个人和团队待办，可直接标记完成。")
         .contentMarginsDisabled()
-        .containerBackgroundRemovable(false)
         .supportedFamilies(families)
     }
 }

@@ -232,6 +232,11 @@ final class TodoModel: ObservableObject {
         }
     }
 
+    func setWidgetAppearance(_ appearance: WidgetAppearanceSettings) throws {
+        try TodoStore.shared().setWidgetAppearance(appearance)
+        reloadWidget()
+    }
+
     private func reloadWidget() {
         WidgetCenter.shared.reloadTimelines(ofKind: TodoStore.widgetKind)
     }

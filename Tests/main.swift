@@ -20,7 +20,16 @@ let tasks = [
 ]
 let sorted = TodoItem.sorted(tasks.map { TodoItem(source: $0) }, at: now)
 expect(sorted.map(\.id) == ["past-day", "past-time", "today", "tomorrow", "later", "none", "done", "cancelled"],
-       "date-only deadlines stay orange all day and explicit times can turn red")
+       "date-only deadlines stay open all day and explicit times can become overdue")
+let sunday = TodoClock.parse("2026-11-08T15:00:00+08:00")!
+expect(TodoItem(source: task("sunday", "2026-11-08")).cardTone(at: now) == .week &&
+       TodoItem(source: task("today", "2026-11-08")).cardTone(at: sunday) == .week &&
+       TodoItem(source: task("next monday", "2026-11-09")).cardTone(at: sunday) == nil &&
+       TodoItem(source: task("past monday", "2026-11-02")).cardTone(at: sunday) == .overdue,
+       "yellow covers Monday through Sunday, excludes next Monday, and gives overdue red precedence")
+expect(TodoItem(source: task("done", "2026-11-02", .done)).cardTone(at: sunday) == .done &&
+       TodoItem(source: task("cancelled", "2026-11-08", .cancelled)).cardTone(at: sunday) == .cancelled,
+       "completion and cancellation colors take precedence over deadline colors")
 
 let scratch = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
 defer { try? FileManager.default.removeItem(at: scratch) }

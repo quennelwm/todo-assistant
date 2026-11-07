@@ -1,8 +1,45 @@
 import Foundation
 import Darwin
 
+struct WidgetAppearanceSettings: Codable {
+    var backingTransparency = 45
+    var cardTransparency = 0
+
+    var backingOpacity: Double { Self.opacity(for: backingTransparency) }
+    var cardOpacity: Double { Self.opacity(for: cardTransparency) }
+
+    private static func opacity(for transparency: Int) -> Double {
+        1 - Double(min(100, max(0, transparency))) / 100
+    }
+}
+
 struct TodoStore {
     let directory: URL
+
+    private var appearancePreference: URL { directory.appending(path: "WidgetAppearance.json") }
+
+    func widgetAppearance() -> WidgetAppearanceSettings {
+        if let data = try? Data(contentsOf: appearancePreference),
+           let appearance = try? JSONDecoder().decode(WidgetAppearanceSettings.self, from: data),
+           (0...100).contains(appearance.backingTransparency),
+           (0...100).contains(appearance.cardTransparency) {
+            return appearance
+        }
+        var appearance = WidgetAppearanceSettings()
+        let legacy = directory.appending(path: "WidgetTransparency.txt")
+        if let value = try? String(contentsOf: legacy, encoding: .utf8),
+           let percent = Int(value), (0...100).contains(percent) {
+            appearance.backingTransparency = percent
+        }
+        return appearance
+    }
+
+    func setWidgetAppearance(_ appearance: WidgetAppearanceSettings) throws {
+        try withLock {
+            let data = try JSONEncoder().encode(appearance)
+            try data.write(to: appearancePreference, options: .atomic)
+        }
+    }
     static let widgetKind = "LocalDesktopTodo"
     static let scheme = "todo-assistant"
 
